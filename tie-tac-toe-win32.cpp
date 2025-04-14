@@ -1,7 +1,7 @@
 // tie-tac-toe-win32.cpp : Defines the entry point for the application.
 //
 
-// I deleted the Dealership folder
+
 #include "framework.h"
 #include "tie-tac-toe-win32.h"
 
@@ -11,6 +11,8 @@
 HINSTANCE hInst;                                // current instance
 WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
 WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+int grid[3][3] = { 0 }; // 0 for empty, 1 for X, 2 for O
+bool isXturn = true;
 
 // Forward declarations of functions included in this code module:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -98,8 +100,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 {
    hInst = hInstance; // Store instance handle in our global variable
 
-   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
+   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
+      CW_USEDEFAULT, 0, 320, 361, nullptr, nullptr, hInstance, nullptr);
 
    if (!hWnd)
    {
@@ -110,6 +112,67 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    UpdateWindow(hWnd);
 
    return TRUE;
+}
+
+POINT winningLineStart = { -1, -1 };
+POINT winningLineEnd = { -1, -1 };
+
+void ResetBoard() {
+    for (int row = 0; row < 3; ++row)
+        for (int col = 0; col < 3; ++col)
+            grid[row][col] = 0;
+
+    isXturn = 1;
+    winningLineStart = { -1, -1 };
+    winningLineEnd = { -1, -1 };
+}
+
+int CheckWin() {
+    for (int i = 0; i < 3; ++i) {
+        if (grid[i][0] != 0 &&
+            grid[i][0] == grid[i][1] &&
+            grid[i][1] == grid[i][2]) {
+            winningLineStart = { 0, i };
+            winningLineEnd = { 2, i };
+            return grid[i][0];
+        }
+    }
+
+    for (int i = 0; i < 3; ++i) {
+        if (grid[0][i] != 0 &&
+            grid[0][i] == grid[1][i] &&
+            grid[1][i] == grid[2][i]) {
+            winningLineStart = { i, 0 };
+            winningLineEnd = { i, 2 };
+            return grid[0][i];
+        }
+    }
+
+    if (grid[0][0] != 0 &&
+    grid[0][0] == grid[1][1] &&
+        grid[1][1] == grid[2][2]) {
+            winningLineStart = { 0, 0 };
+            winningLineEnd = { 2, 2 };
+            return grid[0][0];
+    }
+
+    if (grid[0][2] != 0 &&
+        grid[0][2] == grid[1][1] &&
+        grid[1][1] == grid[2][0]) {
+        winningLineStart = { 2, 0 };
+        winningLineEnd = { 0, 2 };
+        return grid[0][2];
+    }
+
+    bool isTie = true;
+    for (int row = 0; row < 3; ++row)
+        for (int col = 0; col < 3; ++col)
+            if (grid[row][col] == 0)
+                isTie = false;
+
+    if (isTie) return 3;
+
+    return 0;
 }
 
 //
@@ -126,6 +189,37 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+    case WM_LBUTTONDOWN:
+        {
+		    int xPos = LOWORD(lParam);
+		    int yPos = HIWORD(lParam);
+		    int cellSize = 100;
+		    int row = yPos / cellSize;
+		    int col = xPos / cellSize;
+		    if (row >= 0 && row < 3 && col >= 0 && col < 3 && grid[row][col] == 0) {
+			    grid[row][col] = isXturn ? 1 : 2;
+			    isXturn = !isXturn;
+			    InvalidateRect(hWnd, NULL, TRUE);
+		    }
+
+            int result = CheckWin();
+            if (result == 1) {
+                MessageBox(hWnd, L"Player X wins!", L"Game Over", MB_OK);
+                ResetBoard();
+                InvalidateRect(hWnd, NULL, TRUE);
+            }
+            else if (result == 2) {
+                MessageBox(hWnd, L"Player O wins!", L"Game Over", MB_OK);
+                ResetBoard();
+                InvalidateRect(hWnd, NULL, TRUE);
+            }
+            else if (result == 3) {
+                MessageBox(hWnd, L"It's a tie!", L"Game Over", MB_OK);
+                ResetBoard();
+                InvalidateRect(hWnd, NULL, TRUE);
+            }
+        }
+        break;
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
@@ -147,7 +241,52 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
-            // TODO: Add any drawing code that uses hdc here...
+            int cellSize = 100;
+            int gridSize = 3 * cellSize;
+            for (int i = 0; i <= 2; ++i) {
+				MoveToEx(hdc, i * cellSize, 0, nullptr);
+				LineTo(hdc, i * cellSize, 3 * cellSize);
+				MoveToEx(hdc, 0, i * cellSize, nullptr);
+				LineTo(hdc, 3 * cellSize, i * cellSize);
+            }
+            MoveToEx(hdc, gridSize, 0, NULL);
+            LineTo(hdc, gridSize, gridSize);
+            MoveToEx(hdc, 0, gridSize, NULL);
+            LineTo(hdc, gridSize, gridSize);
+            HFONT hFont = CreateFont(48, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+                ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+                DEFAULT_PITCH | FF_SWISS, L"Segoe UI");
+            SelectObject(hdc, hFont);
+            for (int row = 0; row < 3; ++row) {
+                for (int col = 0; col < 3; ++col) {
+                    wchar_t symbol[2] = L" ";
+                    if (grid[row][col] == 1) {
+                        symbol[0] = L'X';
+                    }
+                    else if (grid[row][col] == 2) {
+                        symbol[0] = L'O';
+                    }
+
+                    TextOutW(hdc, col * 100 + 35, row * 100 + 20, symbol, 1);
+                }
+            }
+            if (winningLineStart.x != -1 && winningLineEnd.x != -1) {
+                HPEN pen = CreatePen(PS_SOLID, 5, RGB(255, 0, 0)); // Red line
+                HPEN oldPen = (HPEN)SelectObject(hdc, pen);
+
+                int cellSize = 100;
+                int x1 = winningLineStart.x * cellSize + cellSize / 2;
+                int y1 = winningLineStart.y * cellSize + cellSize / 2;
+                int x2 = winningLineEnd.x * cellSize + cellSize / 2;
+                int y2 = winningLineEnd.y * cellSize + cellSize / 2;
+
+                MoveToEx(hdc, x1, y1, NULL);
+                LineTo(hdc, x2, y2);
+
+                SelectObject(hdc, oldPen);
+                DeleteObject(pen);
+            }
+            DeleteObject(hFont);
             EndPaint(hWnd, &ps);
         }
         break;
